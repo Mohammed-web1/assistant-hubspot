@@ -5,13 +5,12 @@ Un assistant IA personnel connecté à HubSpot via MCP, permettant d'effectuer d
 ## Configuration
 
 1. Créer un fichier `.env.local` à la racine du projet avec les variables suivantes :
-
+   
 ```env
 OPENAI_API_KEY=votre_clé_openai
 HUBSPOT_API_KEY=votre_clé_hubspot
 MCP_SERVER_URL=https://votre-serveur-mcp
 ```
-
 2. Installer les dépendances :
 
 ```bash
