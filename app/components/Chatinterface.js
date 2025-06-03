@@ -1,18 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export default function ChatInterface() {
   const [conversations, setConversations] = useState([
     {
       id: 1,
       messages: [
-        { user: "AI", text: "Bonjour ! Je suis votre assistant HubSpot. Comment puis-je vous aider ?" },
+        { user: "AI", text: "Bonjour ! Je suis votre assistant HubSpot." },
       ],
     },
   ]);
   const [currentConvId, setCurrentConvId] = useState(1);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const currentConversation = conversations.find((c) => c.id === currentConvId);
 
@@ -22,26 +23,73 @@ export default function ChatInterface() {
     const userMessage = { user: "You", text: input };
     updateConversationMessages(currentConvId, (msgs) => [...msgs, userMessage]);
     setInput("");
+    setIsLoading(true);
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: currentConversation.messages }),
+        body: JSON.stringify({
+          userQuery: input
+        }),
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API request failed: ${errorText}`);
+        try {
+          const errorData = await response.json();
+          console.error('API error response:', errorData);
+          throw new Error(`API request failed: ${errorData.error || 'Une erreur est survenue'}`);
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          throw new Error(`API request failed: Code ${response.status}`);
+        }
       }
 
       const data = await response.json();
-      const aiMessage = { user: "AI", text: data.content || "Désolé, une erreur est survenue." };
+      let aiMessage;
+      
+      // Handle HubSpot commands
+      if (data.command) {
+        const commandResult = await fetch("/api/chat/hubspot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: data.command }),
+        });
+        
+        if (!commandResult.ok) {
+          throw new Error("Erreur lors de l'exécution de la commande HubSpot");
+        }
+        
+        const commandData = await commandResult.json();
+        // Extract command if present
+        const commandMatch = response.choices[0].message.content.match(/\[hubspot_command:(.*?)\]/);
+        let command = null;
+      
+      if (commandMatch) {
+        // Format the command correctly for MCP
+        command = commandMatch[1];
+        // Replace spaces with underscores in parameters
+        command = command.replace(/\s+([a-zA-Z_]+)/g, '_$1')
+                        .replace(/\s+/g, '_');
+        console.log('Formatted command:', command);
+      }  
+        aiMessage = { 
+          user: "AI", 
+          text: commandData.success 
+            ? `Action effectuée avec succès: ${commandData.message}`
+            : `Erreur: ${commandData.error}`
+        };
+      } else {
+        aiMessage = { user: "AI", text: data.content || "Désolé, une erreur est survenue." };
+      }
+      
       updateConversationMessages(currentConvId, (msgs) => [...msgs, aiMessage]);
     } catch (error) {
       console.error(error);
       const errorMsg = { user: "AI", text: `Erreur: ${error.message}. Veuillez réessayer.` };
       updateConversationMessages(currentConvId, (msgs) => [...msgs, errorMsg]);
+    } finally {
+      setIsLoading(false);
     }
   };
 

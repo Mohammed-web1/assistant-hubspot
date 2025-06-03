@@ -1,12 +1,12 @@
 # HubSpot AI Assistant
 
-Un assistant IA personnel connecté à HubSpot via MCP, permettant d'effectuer des actions CRM par conversation naturelle.
+A modern AI-powered assistant that integrates with HubSpot CRM using MCP protocol. This project demonstrates a conversational interface for managing CRM operations through natural language interactions.
 
-## Configuration
+## 🎯 Objectif
 
-1. Créer un fichier `.env.local` à la racine du projet avec les variables suivantes :
+Créer une interface web de type assistant personnel qui permet à un utilisateur de discuter avec une intelligence artificielle connectée à HubSpot, capable de réaliser des actions concrètes (rechercher des contacts, créer une opportunité, etc.).
 
-```env
+## 🛠️ Technologies Utilisées
 OPENAI_API_KEY=votre_clé_openai
 HUBSPOT_API_KEY=votre_clé_hubspot
 MCP_SERVER_URL=https://votre-serveur-mcp
