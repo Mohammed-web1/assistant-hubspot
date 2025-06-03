@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hubspot/api-client": "^13.0.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@smithery/cli": "^1.2.5",
     "@smithery/sdk": "^1.4.3",
     "axios": "^1.6.5",
     "framer-motion": "^11.0.0",

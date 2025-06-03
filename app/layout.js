@@ -7,7 +7,7 @@ const inter = Inter({
 });
 
 export const metadata = {
-  metadataBase: new URL('http://localhost:3000'),
+  metadataBase: new URL('https://assistant-hubspot.vercel.app'),
   title: "Assistant HubSpot",
   description: "Assistant intelligent pour HubSpot",
   keywords: "HubSpot, AI, assistant, chatbot",
@@ -23,12 +23,14 @@ export const metadata = {
     description: "Assistant intelligent pour HubSpot",
     type: "website",
     locale: "fr_FR",
-    siteName: "Assistant HubSpot"
+    siteName: "Assistant HubSpot",
+    url: "https://assistant-hubspot.vercel.app"
   },
   twitter: {
     card: "summary_large_image",
     title: "Assistant HubSpot",
-    description: "Assistant intelligent pour HubSpot"
+    description: "Assistant intelligent pour HubSpot",
+    site: "@assistant_hubspot"
   }
 };
 

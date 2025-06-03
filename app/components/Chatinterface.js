@@ -61,18 +61,6 @@ export default function ChatInterface() {
         }
         
         const commandData = await commandResult.json();
-        // Extract command if present
-        const commandMatch = response.choices[0].message.content.match(/\[hubspot_command:(.*?)\]/);
-        let command = null;
-      
-      if (commandMatch) {
-        // Format the command correctly for MCP
-        command = commandMatch[1];
-        // Replace spaces with underscores in parameters
-        command = command.replace(/\s+([a-zA-Z_]+)/g, '_$1')
-                        .replace(/\s+/g, '_');
-        console.log('Formatted command:', command);
-      }  
         aiMessage = { 
           user: "AI", 
           text: commandData.success 
