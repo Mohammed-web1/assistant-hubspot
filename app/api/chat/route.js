@@ -215,7 +215,6 @@ export async function POST(request) {
     if (SECURITY_CONFIG.logLevel === 'debug') {
       console.log('OpenAI response:', content);
     }
-
     // Try to parse the response as JSON
     let parsedResponse = null;
     try {
