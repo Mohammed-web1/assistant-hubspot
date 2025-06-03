@@ -64,71 +64,67 @@ let transport = new StreamableHTTPClientTransport(url);
 
 // Connect to MCP with detailed retry logic
 async function connectToMCP() {
-  let isConnected = false;
-  const maxRetries = 3;
-  let retryCount = 0;
-
-  console.log('Attempting to connect to MCP server...');
-  console.log('Server URL:', url);
-  console.log('Profile ID:', process.env.PROFILE_ID);
-  console.log('Server Name:', process.env.SERVER_NAME);
-
-  while (!isConnected && retryCount < maxRetries) {
-    try {
-      console.log(`Connection attempt ${retryCount + 1}/${maxRetries}`);
-      
-      // Configure client with necessary settings
-      await client.configure({
-        serverUrl: url,
-        profileId: process.env.PROFILE_ID,
-        apiKey: process.env.SMITHERY_API_KEY
-      });
-
-      await client.connect(transport);
-      isConnected = true;
-      
-      console.log('MCP client connected successfully');
-      console.log('Client configuration:', maskSensitiveData(client.configuration));
-      console.log('Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(client)));
-      
-      // Test connection by sending a ping command
-      try {
-        const pingResult = await client.send({
-          type: 'command',
-          name: 'ping',
-          payload: {}
-        });
-        console.log('Ping test successful:', pingResult);
-      } catch (pingError) {
-        console.error('Ping test failed:', pingError);
-      }
-      
-      return true;
-    } catch (error) {
-      retryCount++;
-      console.error(`Connection attempt ${retryCount} failed. Details:`);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
-      if (retryCount < maxRetries) {
-        console.log(`Retrying in ${(retryCount + 1) * 1000}ms...`);
-        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
-      }
+  try {
+    // Check if required environment variables are set
+    if (!process.env.SERVER_NAME) {
+      console.error('SERVER_NAME environment variable is not set');
+      return false;
     }
-  }
+    if (!process.env.PROFILE_ID) {
+      console.error('PROFILE_ID environment variable is not set');
+      return false;
+    }
+    if (!process.env.SMITHERY_API_KEY) {
+      console.error('SMITHERY_API_KEY environment variable is not set');
+      return false;
+    }
 
-  return false;
+    console.log('Attempting to connect to MCP server...');
+    console.log('Connection URL:', url);
+    console.log('Environment variables:', {
+      SERVER_NAME: process.env.SERVER_NAME,
+      PROFILE_ID: process.env.PROFILE_ID,
+      hasApiKey: !!process.env.SMITHERY_API_KEY
+    });
+
+    // First try to connect
+    await client.connect(transport);
+    console.log('Connected to MCP server successfully');
+
+    // Test the connection by fetching system info
+    try {
+      const systemInfo = await client.executeCommand({
+        type: 'command',
+        name: 'system.info'
+      });
+      console.log('MCP System Info:', systemInfo);
+      return true;
+    } catch (infoError) {
+      console.error('Failed to fetch system info:', infoError);
+      // Continue even if system info fails
+      return true;
+    }
+  } catch (error) {
+    console.error('Failed to connect to MCP:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    return false;
+  }
 }
 
 // Try to connect when the file loads
 const connectionSuccess = await connectToMCP();
 
 if (!connectionSuccess) {
-  console.error('Failed to connect to MCP after multiple attempts');
+  console.error('Failed to connect to MCP. Continuing with OpenAI integration only.');
   console.error('Connection URL:', url);
   console.error('Profile ID:', process.env.PROFILE_ID);
   console.error('Server Name:', process.env.SERVER_NAME);
-  throw new Error('Failed to connect to MCP after multiple attempts');
+  console.error('API Key present:', !!process.env.SMITHERY_API_KEY);
+  console.warn('MCP connection failed. The application will continue with OpenAI integration only.');
 }
 
 // Function to mask sensitive data
