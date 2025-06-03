@@ -181,7 +181,6 @@ export async function POST(request) {
           },
           process.env.SMITHERY_API_KEY
         );
-        
         // Update transport with new URL
         transport = new StreamableHTTPClientTransport(url);
         
