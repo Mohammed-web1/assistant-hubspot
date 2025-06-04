@@ -24,10 +24,32 @@ const SECURITY_CONFIG = {
   }
 };
 
+// Utility function to mask sensitive data in logs
+function maskSensitiveData(data) {
+  if (!SECURITY_CONFIG.privacy.maskSensitiveData) return data;
+  
+  const maskedData = JSON.parse(JSON.stringify(data));
+  SECURITY_CONFIG.maskKeys.forEach(key => {
+    if (maskedData[key]) {
+      maskedData[key] = '***MASKED***';
+    }
+    if (maskedData.args && maskedData.args[key]) {
+      maskedData.args[key] = '***MASKED***';
+    }
+  });
+  return maskedData;
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Create URL using profile-based connection with security
+let url = `https://server.smithery.ai/${process.env.SERVER_NAME}/mcp?profile=${process.env.PROFILE_ID}&api_key=${process.env.SMITHERY_API_KEY}`;
+
+// Create transport
+let transport = new StreamableHTTPClientTransport(url);
 
 // Initialize MCP client with detailed configuration
 const client = new Client({
@@ -56,101 +78,64 @@ const client = new Client({
   }
 });
 
-// Create URL using profile-based connection with security
-let url = `https://server.smithery.ai/${process.env.SERVER_NAME}/mcp?profile=${process.env.PROFILE_ID}&api_key=${process.env.SMITHERY_API_KEY}`;
+// Connect client to transport
+try {
+  await client.connect(transport);
+  console.log('MCP client connected successfully');
+} catch (error) {
+  console.error('Error connecting to MCP:', error);
+  // Continue anyway since we can still use the AI without MCP
+}
 
-// Create transport
-let transport = new StreamableHTTPClientTransport(url);
+// Initialize message history
+let messageHistory = [
+  {
+    role: 'system',
+    content: `Vous êtes un assistant IA conversationnel pour HubSpot.
 
-// Connect to MCP with detailed retry logic
-async function connectToMCP() {
-  try {
-    // Check if required environment variables are set
-    if (!process.env.SERVER_NAME) {
-      console.error('SERVER_NAME environment variable is not set');
-      return false;
-    }
-    if (!process.env.PROFILE_ID) {
-      console.error('PROFILE_ID environment variable is not set');
-      return false;
-    }
-    if (!process.env.SMITHERY_API_KEY) {
-      console.error('SMITHERY_API_KEY environment variable is not set');
-      return false;
-    }
+Instructions:
+1. Répondez toujours en français naturel et conversationnel.
+2. Répondez à toutes les questions posées, même si elles ne concernent pas le CRM.
+3. Pour les questions CRM, fournissez des réponses directes avec les données demandées.
+4. Pour les contacts, utilisez ce format :
+   - Prénom Nom (email)
+   - Poste
+   - Entreprise (si applicable)
+5. Pour les entreprises, utilisez ce format :
+   - Nom de l'entreprise
+   - Domaine
+   - Industrie
+   - Nombre d'employés
+6. Pour les deals, utilisez ce format :
+   - Nom du deal
+   - Montant
+   - Étape du deal (appointment_scheduled, qualified_to_buy, presentation_scheduled, contract_sent, closed_won, closed_lost)
+   - Date prévue de clôture
 
-    console.log('Attempting to connect to MCP server...');
-    console.log('Connection URL:', url);
-    console.log('Environment variables:', {
-      SERVER_NAME: process.env.SERVER_NAME,
-      PROFILE_ID: process.env.PROFILE_ID,
-      hasApiKey: !!process.env.SMITHERY_API_KEY
-    });
-
-    // First try to connect
-    await client.connect(transport);
-    console.log('Connected to MCP server successfully');
-
-    // Test the connection by fetching system info
-    try {
-      const systemInfo = await client.executeCommand({
-        type: 'command',
-        name: 'system.info'
-      });
-      console.log('MCP System Info:', systemInfo);
-      return true;
-    } catch (infoError) {
-      console.error('Failed to fetch system info:', infoError);
-      // Continue even if system info fails
-      return true;
-    }
-  } catch (error) {
-    console.error('Failed to connect to MCP:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    return false;
+IMPORTANT: 
+- Pour les questions CRM, donnez des réponses directes avec les données demandées.
+- Répondez toujours aux questions posées, même si elles ne sont pas directement liées au CRM.
+- Répondez également aux requêtes d'action CRM avec des exemples de données.
+- Générez des données d'exemple réalistes et formattez-les de manière claire et lisible.
+- Restez naturel et conversationnel dans vos réponses.`
   }
-}
+];
 
-// Try to connect when the file loads
-const connectionSuccess = await connectToMCP();
-
-if (!connectionSuccess) {
-  console.error('Failed to connect to MCP. Continuing with OpenAI integration only.');
-  console.error('Connection URL:', url);
-  console.error('Profile ID:', process.env.PROFILE_ID);
-  console.error('Server Name:', process.env.SERVER_NAME);
-  console.error('API Key present:', !!process.env.SMITHERY_API_KEY);
-  console.warn('MCP connection failed. The application will continue with OpenAI integration only.');
-}
-
-// Function to mask sensitive data
-function maskSensitiveData(data) {
-  if (typeof data !== 'object') {
-    return data;
+// Function to manage message history
+function updateMessageHistory(message) {
+  messageHistory.push(message);
+  // Keep only last 20 messages to prevent memory issues
+  if (messageHistory.length > 20) {
+    messageHistory = messageHistory.slice(-20);
   }
-
-  const maskedData = { ...data };
-
-  Object.keys(maskedData).forEach(key => {
-    if (SECURITY_CONFIG.maskKeys.includes(key)) {
-      maskedData[key] = '***';
-    } else if (typeof maskedData[key] === 'object') {
-      maskedData[key] = maskSensitiveData(maskedData[key]);
-    }
-  });
-
-  return maskedData;
+  return messageHistory;
 }
 
-// POST handler with security measures and deep link integration
+// POST handler with message history
 export async function POST(request) {
   try {
-    const { userQuery, mcpConfig } = await request.json();
-
+    const { userQuery } = await request.json();
+    
     if (!userQuery) {
       return NextResponse.json(
         { error: 'Requête invalide. Le champ "userQuery" est requis.' },
@@ -158,58 +143,27 @@ export async function POST(request) {
       );
     }
 
-    // Handle MCP configuration if provided via deep link
-    if (mcpConfig) {
-      try {
-        const config = JSON.parse(decodeURIComponent(mcpConfig));
-        SECURITY_CONFIG.mcpConfig = config;
-        url = createSmitheryUrl(
-          config.url,
-          { 
-            profile: process.env.PROFILE_ID,
-            config: {
-              privacy: {
-                maskSensitiveData: true,
-                trackAnalytics: SECURITY_CONFIG.privacy.trackAnalytics
-              },
-              debug: SECURITY_CONFIG.logLevel === 'debug'
-            }
-          },
-          process.env.SMITHERY_API_KEY
-        );
-        // Update transport with new URL
-        transport = new StreamableHTTPClientTransport(url);
-        
-        // Reconnect with new configuration
-        await client.disconnect();
-        await connectToMCP();
-      } catch (error) {
-        console.error('Error handling MCP configuration:', error);
-        return NextResponse.json(
-          { error: 'Erreur lors de la configuration du serveur MCP.' },
-          { status: 500 }
-        );
-      }
-    }
+    // Add user message to history
+    updateMessageHistory({
+      role: 'user',
+      content: userQuery
+    });
 
-    // Generate OpenAI response with instructions for HubSpot actions
+    // Generate OpenAI response with context
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
-      messages: [
-        { 
-          role: 'system', 
-          content: 'Vous êtes un assistant IA conversationnel pour la gestion client via HubSpot.\n\nInstructions:\n1. Répondez toujours en français de manière naturelle et conversationnelle.\n2. Si une action CRM est requise, retournez un objet JSON avec la structure suivante:\n{\n  "action": "create_contact" | "update_contact" | "search_contacts" | "create_company" | "update_company" | "search_companies" | "create_deal" | "search_deals",\n  "data": {\n    "command": {\n      "name": "hubspot.createContact" | "hubspot.updateContact" | "hubspot.searchContacts" | "hubspot.createCompany" | "hubspot.updateCompany" | "hubspot.searchCompanies" | "hubspot.createDeal" | "hubspot.searchDeals",\n      "args": {\n        // Pour les contacts:\n        "properties": {\n          "firstName": "string",\n          "lastName": "string",\n          "email": "string",\n          "jobTitle": "string",\n          "phone": "string",\n          "companyId": "string"\n        },\n        // Pour les entreprises:\n        "properties": {\n          "name": "string",\n          "domain": "string",\n          "industry": "string",\n          "numberOfEmployees": "number"\n        },\n        // Pour les deals:\n        "properties": {\n          "dealName": "string",\n          "amount": "number",\n          "dealstage": "string",\n          "pipeline": "string",\n          "closedate": "string",\n          "hubspot_owner_id": "string",\n          "associatedCompany": "string",\n          "associatedContact": "string"\n        },\n        // Pour les recherches:\n        "filters": {\n          "term": "string",\n          "properties": ["string"]\n        },\n        // Pour les recherches de deals:\n        "dealFilters": {\n          "pipeline": "string",\n          "stage": "string",\n          "period": {\n            "start": "string",\n            "end": "string"\n          },\n          "sort": {\n            "field": "string",\n            "order": "asc" | "desc"\n          }\n        }\n      }\n    }\n  }\n}\n\nIMPORTANT: Si une action CRM est requise, retournez uniquement l\'objet JSON avec la structure exacte spécifiée ci-dessus. Sinon, répondez simplement en français.'
-        },
-        { role: 'user', content: userQuery }
-      ]
+      messages: messageHistory,
+      temperature: 0.7
     });
 
     const content = response.choices[0].message.content;
     
-    // Log with security measures
-    if (SECURITY_CONFIG.logLevel === 'debug') {
-      console.log('OpenAI response:', content);
-    }
+    // Add assistant message to history
+    updateMessageHistory({
+      role: 'assistant',
+      content: content
+    });
+
     // Try to parse the response as JSON
     let parsedResponse = null;
     try {
@@ -238,16 +192,14 @@ export async function POST(request) {
           const result = await client.send({
             type: 'command',
             name: command,
-            payload: {
-              ...args
-            }
+            args: args
           });
-          
+
           // Secure logging
           if (SECURITY_CONFIG.logLevel === 'debug') {
             console.log('Command executed successfully:', maskSensitiveData(result));
           }
-          
+
           // Format the response based on the action type
           let responseContent;
           switch (parsedResponse.action) {
@@ -322,7 +274,6 @@ export async function POST(request) {
         command: null
       });
     }
-
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json(
