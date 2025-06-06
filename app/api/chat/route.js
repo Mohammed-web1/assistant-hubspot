@@ -5,11 +5,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 // Configuration de sécurité
 const SECURITY_CONFIG = {
-  // Masquage des clés API dans les logs
   maskKeys: ['api_key', 'hubspotApiKey', 'SMITHERY_API_KEY'],
-  // Configuration des logs de sécurité
   logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
-  // Configuration de la confidentialité
   privacy: {
     maskSensitiveData: true,
     trackAnalytics: process.env.NODE_ENV === 'development'
@@ -27,7 +24,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Initialize MCP client with detailed configuration
+// Initialize MCP client 
 const client = new Client({
   name: "HubSpot Assistant",
   version: "1.0.0",
@@ -54,13 +51,13 @@ const client = new Client({
   }
 });
 
-// Create URL using profile-based connection with security
+// Create URL using profile based 
 let url = `https://server.smithery.ai/${process.env.SERVER_NAME}/mcp?profile=${process.env.PROFILE_ID}&api_key=${process.env.SMITHERY_API_KEY}`;
 
 // Create transport
 let transport = new StreamableHTTPClientTransport(url);
 
-// Connect to MCP with detailed retry logic
+// Connect to MCP
 async function connectToMCP() {
   try {
     // Check if required environment variables are set
