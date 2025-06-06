@@ -169,7 +169,7 @@ export default function ChatInterface() {
         {sidebarOpen ? "❮" : "❯"}
       </button>
 
-      {/* Main content */}
+      {/*  content */}
       <div
         className={`flex flex-col flex-grow transition-margin duration-300 ease-in-out bg-gradient-to-br from-[#020818] to-[#0F172A] text-gray-200
           ${sidebarOpen ? "ml-80" : "ml-0"}
