@@ -3,7 +3,7 @@ import { OpenAI } from 'openai';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 
-// Configuration de sécurité
+
 const SECURITY_CONFIG = {
   maskKeys: ['api_key', 'hubspotApiKey', 'SMITHERY_API_KEY'],
   logLevel: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
@@ -11,7 +11,7 @@ const SECURITY_CONFIG = {
     maskSensitiveData: true,
     trackAnalytics: process.env.NODE_ENV === 'development'
   },
-  // Configuration MCP
+  
   mcpConfig: {
     name: process.env.SERVER_NAME || '@shinzo-labs/hubspot-mcp',
     type: 'http',
@@ -19,12 +19,11 @@ const SECURITY_CONFIG = {
   }
 };
 
-// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Initialize MCP client 
+
 const client = new Client({
   name: "HubSpot Assistant",
   version: "1.0.0",
@@ -51,16 +50,14 @@ const client = new Client({
   }
 });
 
-// Create URL using profile based 
+
 let url = `https://server.smithery.ai/${process.env.SERVER_NAME}/mcp?profile=${process.env.PROFILE_ID}&api_key=${process.env.SMITHERY_API_KEY}`;
 
-// Create transport
+
 let transport = new StreamableHTTPClientTransport(url);
 
-// Connect to MCP
 async function connectToMCP() {
   try {
-    // Check if required environment variables are set
     if (!process.env.SERVER_NAME) {
       console.error('SERVER_NAME environment variable is not set');
       return false;
@@ -82,11 +79,8 @@ async function connectToMCP() {
       hasApiKey: !!process.env.SMITHERY_API_KEY
     });
 
-    // First try to connect
     await client.connect(transport);
     console.log('Connected to MCP server successfully');
-
-    // Test the connection by fetching system info
     try {
       const systemInfo = await client.executeCommand({
         type: 'command',
@@ -96,7 +90,6 @@ async function connectToMCP() {
       return true;
     } catch (infoError) {
       console.error('Failed to fetch system info:', infoError);
-      // Continue even if system info fails
       return true;
     }
   } catch (error) {
@@ -110,7 +103,6 @@ async function connectToMCP() {
   }
 }
 
-// Try to connect when the file loads
 const connectionSuccess = await connectToMCP();
 
 if (!connectionSuccess) {
@@ -122,7 +114,7 @@ if (!connectionSuccess) {
   console.warn('MCP connection failed. The application will continue with OpenAI integration only.');
 }
 
-// Function to mask sensitive data
+
 function maskSensitiveData(data) {
   if (typeof data !== 'object') {
     return data;
@@ -141,7 +133,6 @@ function maskSensitiveData(data) {
   return maskedData;
 }
 
-// POST handler with security measures and deep link integration
 export async function POST(request) {
   try {
     const { userQuery, mcpConfig } = await request.json();
@@ -153,7 +144,6 @@ export async function POST(request) {
       );
     }
 
-    // Handle MCP configuration if provided via deep link
     if (mcpConfig) {
       try {
         const config = JSON.parse(decodeURIComponent(mcpConfig));
@@ -172,10 +162,8 @@ export async function POST(request) {
           },
           process.env.SMITHERY_API_KEY
         );
-        // Update transport with new URL
         transport = new StreamableHTTPClientTransport(url);
         
-        // Reconnect with new configuration
         await client.disconnect();
         await connectToMCP();
       } catch (error) {
@@ -187,7 +175,6 @@ export async function POST(request) {
       }
     }
 
-    // Generate OpenAI response with instructions for HubSpot actions
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
@@ -200,36 +187,26 @@ export async function POST(request) {
     });
 
     const content = response.choices[0].message.content;
-    
-    // Log with security measures
-    if (SECURITY_CONFIG.logLevel === 'debug') {
+        if (SECURITY_CONFIG.logLevel === 'debug') {
       console.log('OpenAI response:', content);
     }
-    // Try to parse the response as JSON
     let parsedResponse = null;
     try {
-      // Try to find JSON object in the response
       const jsonMatch = content.match(/\{.*\}/s);
       if (jsonMatch) {
         parsedResponse = JSON.parse(jsonMatch[0]);
       }
-      
-      // Secure logging
-      if (SECURITY_CONFIG.logLevel === 'debug' && parsedResponse) {
+            if (SECURITY_CONFIG.logLevel === 'debug' && parsedResponse) {
         console.log('Parsed response:', maskSensitiveData(parsedResponse));
       }
-
-      // If there's a HubSpot action, execute it
       if (parsedResponse && parsedResponse.action && parsedResponse.data) {
         try {
           const { command, args } = parsedResponse.data.command;
           
-          // Secure logging
           if (SECURITY_CONFIG.logLevel === 'debug') {
             console.log('Executing command:', maskSensitiveData({ command, args }));
           }
           
-          // Execute the command through MCP
           const result = await client.send({
             type: 'command',
             name: command,
@@ -238,12 +215,10 @@ export async function POST(request) {
             }
           });
           
-          // Secure logging
           if (SECURITY_CONFIG.logLevel === 'debug') {
             console.log('Command executed successfully:', maskSensitiveData(result));
           }
           
-          // Format the response based on the action type
           let responseContent;
           switch (parsedResponse.action) {
             case 'create_contact':
@@ -280,14 +255,12 @@ export async function POST(request) {
             result: result
           });
         } catch (error) {
-          // Secure error logging
           console.error('Error executing MCP command:', {
             command: command,
             error: error.message,
             stack: error.stack
           });
           
-          // Check if error is related to deal stage
           if (error.message.includes('dealstage')) {
             return NextResponse.json({
               content: `Erreur: La valeur du dealstage n'est pas valide. Les valeurs valides sont: appointment_scheduled, qualified_to_buy, presentation_scheduled, contract_sent, closed_won, closed_lost`,
@@ -303,7 +276,6 @@ export async function POST(request) {
           });
         }
       } else {
-        // If no action, just return the AI's response
         return NextResponse.json({
           content: content,
           command: null
@@ -311,7 +283,6 @@ export async function POST(request) {
       }
     } catch (e) {
       console.error('Error parsing response:', e);
-      // If not JSON, just return the content
       return NextResponse.json({
         content: content,
         command: null
