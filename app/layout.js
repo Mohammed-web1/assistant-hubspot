@@ -5,7 +5,6 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
 });
-
 export const metadata = {
   metadataBase: new URL('https://assistant-hubspot.vercel.app'),
   title: "Assistant HubSpot",
@@ -33,7 +32,6 @@ export const metadata = {
     site: "@assistant_hubspot"
   }
 };
-
 export default function RootLayout({ children }) {
   return (
     <html lang="fr" suppressHydrationWarning>
