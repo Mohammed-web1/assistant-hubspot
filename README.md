@@ -6,8 +6,6 @@ A modern AI-powered assistant that integrates with HubSpot CRM using MCP protoco
 
 Créer une interface web de type assistant personnel qui permet à un utilisateur de discuter avec une intelligence artificielle connectée à HubSpot, capable de réaliser des actions concrètes (rechercher des contacts, créer une opportunité, etc.).
 
-## 🛠️ Technologies Utilisées
-
 ## 🛠️ Configuration
 
 1. Créer un fichier `.env.local` à la racine du projet avec les variables suivantes :
