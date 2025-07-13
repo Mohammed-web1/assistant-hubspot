@@ -36,4 +36,4 @@ npm run dev
 - Intégration avec l'API OpenAI pour une conversation naturelle
 - Actions HubSpot via MCP
 - Historique des conversations
-- Interface multilingue (Français) 
+
